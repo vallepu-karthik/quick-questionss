@@ -1,0 +1,597 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Just Say Yes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=DM+Sans:wght@400;500;700&display=swap">
+<style>
+  /* Layout: one centered card. The question stays put; the stage below it swaps to a new mechanic each time. */
+  :root {
+    --bg: #fff4ef;
+    --card: #ffffff;
+    --fg: #2a1620;
+    --muted: #8a6b78;
+    --accent: #e8325a;
+    --accent-fg: #ffffff;
+    --line: #f3d9de;
+    --no-bg: #f6e9ec;
+    --font-display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+    --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1a0f15;
+      --card: #281820;
+      --fg: #fbe9ee;
+      --muted: #b8929f;
+      --accent: #ff4d76;
+      --accent-fg: #1a0f15;
+      --line: #442733;
+      --no-bg: #3a2530;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1a0f15;
+    --card: #281820;
+    --fg: #fbe9ee;
+    --muted: #b8929f;
+    --accent: #ff4d76;
+    --accent-fg: #1a0f15;
+    --line: #442733;
+    --no-bg: #3a2530;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0;
+    padding-block: 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-x: hidden;
+  }
+  main {
+    width: 100%;
+    max-width: 440px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 28px 22px 24px;
+    min-width: 0;
+  }
+  #quiz { display: flex; flex-direction: column; gap: 18px; }
+  .progress {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .bar { flex: 1; height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .4s ease; }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(28px, 8vw, 38px);
+    line-height: 1.1;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .stage { min-height: 250px; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  .msg { margin: 0; min-height: 3em; color: var(--muted); font-size: 15px; text-wrap: balance; }
+
+  .btn {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 16px;
+    border: 0;
+    border-radius: 999px;
+    padding: .75em 1.4em;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: font-size .25s ease, padding .25s ease, transform .15s ease;
+  }
+  .btn:focus-visible, .choice:focus-visible, .knob:focus-visible { outline: 3px solid var(--fg); outline-offset: 3px; }
+  .primary { background: var(--accent); color: var(--accent-fg); }
+  .alt { background: var(--no-bg); color: var(--fg); }
+
+  /* 1: runaway No */
+  .arena {
+    position: relative;
+    height: 230px;
+    border-radius: 14px;
+    background: var(--bg);
+    border: 1px dashed var(--line);
+    touch-action: none;
+  }
+  .pos-yes {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    translate: 0 -50%;
+    transform-origin: left center;
+    transition: transform .25s cubic-bezier(.3,1.6,.5,1);
+  }
+  .runner { position: absolute; left: 0; top: 0; transition: left .22s ease, top .22s ease; }
+
+  /* 2: shrinking No */
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    min-height: 220px;
+    border-radius: 14px;
+    background: var(--bg);
+    border: 1px dashed var(--line);
+    padding: 16px;
+  }
+
+  /* 3: snap-back slider */
+  .sl { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+  .big { font-family: var(--font-display); font-weight: 800; font-size: 54px; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .cap { color: var(--muted); font-size: 15px; }
+  .sl input[type="range"] { width: 100%; height: 44px; accent-color: var(--accent); }
+  .ends { display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* 4: locked option */
+  .choices { display: grid; gap: 10px; }
+  .choice {
+    font-family: var(--font-body);
+    font-size: 17px;
+    font-weight: 500;
+    text-align: left;
+    padding: .9em 1.2em;
+    border-radius: 14px;
+    background: var(--no-bg);
+    color: var(--fg);
+    border: 2px solid transparent;
+    cursor: pointer;
+  }
+  .choice:hover { border-color: var(--accent); }
+  .choice.locked { display: flex; justify-content: space-between; align-items: center; opacity: .8; cursor: not-allowed; }
+  .choice.locked:hover { border-color: var(--line); }
+  .choice em { font-style: normal; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .shake { animation: shake .4s; }
+  @keyframes shake { 0%,100% { translate: 0 0; } 20% { translate: -8px 0; } 40% { translate: 8px 0; } 60% { translate: -6px 0; } 80% { translate: 6px 0; } }
+
+  /* 5: hold to fill */
+  .meters { display: flex; flex-direction: column; gap: 16px; }
+  .meter { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; }
+  .meter span { font-size: 13px; color: var(--muted); }
+  .meter b { font-size: 14px; font-variant-numeric: tabular-nums; }
+  .track { grid-column: 1 / -1; height: 14px; background: var(--no-bg); border-radius: 99px; overflow: hidden; }
+  .track i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .track i.ph { background: var(--muted); transition: width .3s ease; }
+  .hold { width: 100%; padding: 1.1em; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .hold.on { transform: scale(.98); }
+
+  /* 6: slide to forgive */
+  .slide { position: relative; height: 60px; border-radius: 99px; background: var(--no-bg); overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .slide .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 56px; background: var(--accent); opacity: .25; }
+  .slide .lbl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-weight: 500; letter-spacing: .04em; pointer-events: none; }
+  .knob {
+    position: absolute; left: 4px; top: 4px; width: 52px; height: 52px; padding: 0;
+    border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-fg);
+    font-size: 22px; font-weight: 700; display: grid; place-items: center; cursor: grab; touch-action: none;
+  }
+  .knob.snap, .fill.snap { transition: left .3s ease, width .3s ease; }
+
+  /* 7: wheel */
+  .center { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .wheelwrap { position: relative; width: min(280px, 100%); }
+  .wheelwrap canvas { width: 100%; height: auto; display: block; border-radius: 50%; transition: transform 3.6s cubic-bezier(.12,.7,.1,1); }
+  .pin {
+    position: absolute; left: 50%; top: -6px; translate: -50% 0; z-index: 1;
+    width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 22px solid var(--fg);
+  }
+
+  .done { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; padding-block: 36px; }
+  .done h1 { font-size: clamp(30px, 9vw, 44px); }
+  .done p { margin: 0; color: var(--muted); }
+  canvas#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .runner, .pos-yes, .bar i, .wheelwrap canvas, .knob.snap, .fill.snap, .track i.ph { transition: none; }
+    .shake { animation: none; }
+  }
+</style>
+
+<main id="card">
+  <div id="quiz">
+    <div class="progress">
+      <span id="count">1 / 7</span>
+      <div class="bar"><i id="fill"></i></div>
+    </div>
+    <h1 id="q"></h1>
+    <div class="stage" id="stage"></div>
+    <p class="msg" id="msg" aria-live="polite"></p>
+  </div>
+  <div id="finale" class="done" hidden>
+    <h1>I knew you'd say yes ❤</h1>
+    <p>Seven questions, seven yeses. No arguments.</p>
+    <button class="btn alt" id="again" type="button">Ask me again</button>
+  </div>
+</main>
+<canvas id="confetti"></canvas>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var stage = $("stage"), msgEl = $("msg"), qEl = $("q");
+  var i = 0, cleanup = null, token = 0;
+
+  function say(t) { msgEl.textContent = t; }
+  function rand(list) { return list[Math.floor(Math.random() * list.length)]; }
+  function later(fn, ms) {
+    var t = token;
+    return setTimeout(function () { if (t === token) fn(); }, ms);
+  }
+
+  /* 1. Runaway No */
+  function stepRunaway() {
+    stage.innerHTML =
+      '<div class="arena" id="arena">' +
+      '<button type="button" class="btn primary pos-yes" id="yes">Yes</button>' +
+      '<button type="button" class="btn alt runner" id="no">No</button></div>';
+    var arena = $("arena"), yes = $("yes"), no = $("no");
+    var dodges = 0, LIMIT = 7;
+    var TEASES = ["Nice try.", "Too slow!", "Are you sure about that?", "The button has feelings too.",
+                  "It does not want to be clicked.", "Almost had it.", "Just press Yes, it is right there."];
+
+    function placeNo(px, py) {
+      var a = arena.getBoundingClientRect(), nb = no.getBoundingClientRect(), yb = yes.getBoundingClientRect();
+      var maxX = Math.max(0, a.width - nb.width - 8), maxY = Math.max(0, a.height - nb.height - 8);
+      var best = null, bestScore = -Infinity;
+      for (var t = 0; t < 16; t++) {
+        var x = 4 + Math.random() * maxX, y = 4 + Math.random() * maxY;
+        var cx = a.left + x + nb.width / 2, cy = a.top + y + nb.height / 2;
+        var l = a.left + x, tp = a.top + y;
+        var hitsYes = l < yb.right + 10 && l + nb.width > yb.left - 10 && tp < yb.bottom + 10 && tp + nb.height > yb.top - 10;
+        var dist = px === null ? 100 : Math.hypot(cx - px, cy - py);
+        var score = hitsYes ? dist - 1000 : dist;
+        if (score > bestScore) { bestScore = score; best = { x: x, y: y }; }
+      }
+      no.style.left = best.x + "px";
+      no.style.top = best.y + "px";
+    }
+    function dodge(e) {
+      if (dodges >= LIMIT) return;
+      var p = e && e.touches ? e.touches[0] : e;
+      var px = p && typeof p.clientX === "number" ? p.clientX : null;
+      var py = p && typeof p.clientY === "number" ? p.clientY : null;
+      dodges++;
+      yes.style.transform = "scale(" + (1 + Math.min(dodges, 6) * 0.12) + ")";
+      if (dodges >= LIMIT) { no.textContent = "Okay fine, Yes"; say("Okay, it gave up."); return; }
+      say(TEASES[dodges - 1]);
+      placeNo(px, py);
+    }
+    no.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") dodge(e); });
+    no.addEventListener("pointerdown", function (e) { if (dodges < LIMIT) { e.preventDefault(); dodge(e); } });
+    no.addEventListener("touchstart", function (e) { if (dodges < LIMIT) { e.preventDefault(); dodge(e); } }, { passive: false });
+    no.addEventListener("keydown", function (e) {
+      if ((e.key === "Enter" || e.key === " ") && dodges < LIMIT) { e.preventDefault(); dodge(null); }
+    });
+    no.addEventListener("click", function (e) { if (dodges >= LIMIT) advance(); else { e.preventDefault(); dodge(e); } });
+    yes.addEventListener("click", advance);
+    var onResize = function () { if (dodges < LIMIT) placeNo(null, null); };
+    window.addEventListener("resize", onResize);
+    requestAnimationFrame(function () { placeNo(null, null); });
+    return function () { window.removeEventListener("resize", onResize); };
+  }
+
+  /* 2. No shrinks away */
+  function stepShrink() {
+    stage.innerHTML =
+      '<div class="row">' +
+      '<button type="button" class="btn primary" id="yes">Obviously</button>' +
+      '<button type="button" class="btn alt" id="no">Let me think</button></div>';
+    var yes = $("yes"), no = $("no"), n = 0;
+    var LINES = ["That was a little too honest.", "It is shrinking under the pressure.",
+                 "Hard to click now, isn't it?", "One more and it is gone."];
+    yes.style.fontSize = "18px";
+    no.style.fontSize = "18px";
+    no.addEventListener("click", function () {
+      n++;
+      if (n >= 5) {
+        no.remove();
+        yes.style.fontSize = "30px";
+        say("It has left the chat.");
+        return;
+      }
+      no.style.fontSize = (18 * Math.pow(0.6, n)) + "px";
+      yes.style.fontSize = (18 + n * 3.5) + "px";
+      say(LINES[n - 1]);
+    });
+    yes.addEventListener("click", advance);
+  }
+
+  /* 3. Slider that snaps to 100% */
+  function stepSlider() {
+    stage.innerHTML =
+      '<div class="sl"><div class="big" id="pct">10%</div>' +
+      '<label class="cap" for="rng">How much of your food do I get?</label>' +
+      '<input type="range" id="rng" min="0" max="100" value="10">' +
+      '<div class="ends"><span>None</span><span>All of it</span></div></div>';
+    var rng = $("rng"), pct = $("pct"), raf = 0, busy = false;
+    function win() {
+      rng.disabled = true;
+      say("Generous. Thank you.");
+      later(advance, 1100);
+    }
+    rng.addEventListener("input", function () { pct.textContent = rng.value + "%"; });
+    rng.addEventListener("change", function () {
+      if (busy) return;
+      var v = +rng.value;
+      if (v >= 100) { win(); return; }
+      busy = true;
+      rng.disabled = true;
+      say(v < 50 ? rand(["That is not a number I accept.", "I will pretend I did not see that."]) : "Let me help you with that.");
+      var t0 = null;
+      function tick(ts) {
+        if (t0 === null) t0 = ts;
+        var p = Math.min(1, (ts - t0) / 800), e = 1 - Math.pow(1 - p, 3);
+        var cur = Math.round(v + (100 - v) * e);
+        rng.value = cur;
+        pct.textContent = cur + "%";
+        if (p < 1) raf = requestAnimationFrame(tick); else win();
+      }
+      raf = requestAnimationFrame(tick);
+    });
+    return function () { cancelAnimationFrame(raf); };
+  }
+
+  /* 4. Locked option */
+  function stepLocked() {
+    stage.innerHTML =
+      '<div class="choices">' +
+      '<button type="button" class="choice" data-ok="1">Yes</button>' +
+      '<button type="button" class="choice" data-ok="1">Absolutely</button>' +
+      '<button type="button" class="choice" data-ok="1">100%</button>' +
+      '<button type="button" class="choice locked" id="locked" aria-disabled="true"><span>No</span><em>Locked</em></button></div>';
+    var locked = $("locked");
+    stage.addEventListener("click", onClick);
+    function onClick(e) {
+      var b = e.target.closest(".choice");
+      if (!b) return;
+      if (b.dataset.ok) { say("Correct."); advance(); return; }
+      b.classList.remove("shake");
+      void b.offsetWidth;
+      b.classList.add("shake");
+      say(rand(["This option is not available in your region.", "Access denied.", "Admin approval required.", "Nice try. It is locked."]));
+    }
+    return function () { stage.removeEventListener("click", onClick); };
+  }
+
+  /* 5. Hold to prove it */
+  function stepHold() {
+    stage.innerHTML =
+      '<div class="meters">' +
+      '<div class="meter"><span>Your love for me</span><b id="lp">0%</b><div class="track"><i id="lf"></i></div></div>' +
+      '<div class="meter"><span>Your phone</span><b id="pp">100%</b><div class="track"><i class="ph" id="pf" style="width:100%"></i></div></div></div>' +
+      '<button type="button" class="btn primary hold" id="hold">Hold to prove it</button>';
+    var hold = $("hold"), lf = $("lf"), lp = $("lp"), pf = $("pf"), pp = $("pp");
+    var holding = false, p = 0, last = 0, raf = 0, won = false;
+
+    function render() { lf.style.width = (p * 100) + "%"; lp.textContent = Math.round(p * 100) + "%"; }
+    function loop(ts) {
+      if (!last) last = ts;
+      var dt = ts - last; last = ts;
+      p = holding ? Math.min(1, p + dt / 2500) : Math.max(0, p - dt / 600);
+      render();
+      if (p >= 1 && !won) {
+        won = true; holding = false;
+        pf.style.width = "1%"; pp.textContent = "1%";
+        hold.classList.remove("on");
+        hold.disabled = true;
+        say("Your phone died of shock. You win.");
+        later(advance, 1500);
+        return;
+      }
+      raf = requestAnimationFrame(loop);
+    }
+    function start(e) {
+      if (won) return;
+      if (e) e.preventDefault();
+      holding = true;
+      hold.classList.add("on");
+      say("Keep holding.");
+    }
+    function stop() {
+      if (!holding) return;
+      holding = false;
+      hold.classList.remove("on");
+      if (!won && p > 0.05) say(rand(["You let go. The phone is smiling.", "Phone 1, you 0. Try again.", "Hold longer. The phone is watching."]));
+    }
+    var onKeyDown = function (e) { if ((e.key === " " || e.key === "Enter") && !e.repeat) start(e); };
+    var onKeyUp = function (e) { if (e.key === " " || e.key === "Enter") stop(); };
+    hold.addEventListener("pointerdown", start);
+    hold.addEventListener("keydown", onKeyDown);
+    hold.addEventListener("keyup", onKeyUp);
+    hold.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+    raf = requestAnimationFrame(loop);
+    return function () {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+  }
+
+  /* 6. Slide to forgive */
+  function stepSlide() {
+    stage.innerHTML =
+      '<div class="slide" id="slide"><div class="fill" id="fill2"></div>' +
+      '<div class="lbl">Slide to forgive me</div>' +
+      '<button type="button" class="knob" id="knob" aria-label="Slide to forgive">&rarr;</button></div>';
+    var slide = $("slide"), knob = $("knob"), fillEl = $("fill2");
+    var attempts = 0, x = 0, dragging = false, startX = 0, done = false;
+    var COMPLAIN = ["Forgive me harder.", "Barely counts. Try with feeling."];
+    function maxX() { return Math.max(1, slide.clientWidth - 52 - 8); }
+    function setX(v) { x = v; knob.style.left = (4 + x) + "px"; fillEl.style.width = (x + 56) + "px"; }
+    function snapOn() { knob.classList.add("snap"); fillEl.classList.add("snap"); }
+    function snapOff() { knob.classList.remove("snap"); fillEl.classList.remove("snap"); }
+    function finish() {
+      done = true; snapOn(); setX(maxX());
+      say("Forgiven. Thank you.");
+      later(advance, 900);
+    }
+    knob.addEventListener("pointerdown", function (e) {
+      if (done) return;
+      dragging = true; startX = e.clientX - x; snapOff();
+      try { knob.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    knob.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      var lim = attempts < 2 ? maxX() * 0.75 : maxX();
+      setX(Math.max(0, Math.min(lim, e.clientX - startX)));
+    });
+    function release() {
+      if (!dragging) return;
+      dragging = false;
+      if (attempts >= 2 && x >= maxX() * 0.97) { finish(); return; }
+      if (x > maxX() * 0.3) {
+        if (attempts < 2) { say(COMPLAIN[attempts]); attempts++; } else say("Almost. A bit more.");
+      }
+      snapOn(); setX(0);
+    }
+    knob.addEventListener("pointerup", release);
+    knob.addEventListener("pointercancel", release);
+    knob.addEventListener("keydown", function (e) {
+      if (done || (e.key !== "Enter" && e.key !== " " && e.key !== "ArrowRight")) return;
+      e.preventDefault();
+      if (attempts < 2) {
+        snapOn(); setX(maxX() * 0.75); say(COMPLAIN[attempts]); attempts++;
+        later(function () { if (!done) { snapOn(); setX(0); } }, 450);
+      } else finish();
+    });
+    setX(0);
+  }
+
+  /* 7. Wheel where every slice is yes */
+  function stepWheel() {
+    stage.innerHTML =
+      '<div class="center"><div class="wheelwrap"><div class="pin"></div>' +
+      '<canvas id="wheel" width="560" height="560" aria-label="Wheel with only yes answers"></canvas></div>' +
+      '<button type="button" class="btn primary" id="spin">Spin to decide</button></div>';
+    var LABELS = ["Yes", "Of course", "Yes + snacks", "Yes!!", "Let's go", "Obviously"];
+    var n = LABELS.length, seg = 360 / n;
+    var cv = $("wheel"), ctx = cv.getContext("2d"), R = 280;
+    for (var k = 0; k < n; k++) {
+      var a0 = -Math.PI / 2 + k * (2 * Math.PI / n), a1 = a0 + 2 * Math.PI / n;
+      var strong = k % 2 === 0;
+      ctx.beginPath(); ctx.moveTo(R, R); ctx.arc(R, R, R - 4, a0, a1); ctx.closePath();
+      ctx.fillStyle = strong ? "#e8325a" : "#ffc2d0";
+      ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+      ctx.save();
+      ctx.translate(R, R); ctx.rotate((a0 + a1) / 2);
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.font = "700 34px 'DM Sans', system-ui, sans-serif";
+      ctx.fillStyle = strong ? "#ffffff" : "#2a1620";
+      ctx.fillText(LABELS[k], R - 36, 0);
+      ctx.restore();
+    }
+    var spun = false, spin = $("spin");
+    spin.addEventListener("click", function () {
+      if (spun) return;
+      spun = true; spin.disabled = true;
+      var pick = Math.floor(Math.random() * n);
+      var deg = 360 * 6 - (pick + 0.5) * seg;
+      say("Spinning...");
+      cv.style.transform = "rotate(" + deg + "deg)";
+      later(function () { say("The wheel has spoken: " + LABELS[pick] + "."); }, 3700);
+      later(advance, 5200);
+    });
+  }
+
+  var STEPS = [
+    { q: "Do you trust me?", mount: stepRunaway },
+    { q: "Am I your favorite person?", mount: stepShrink },
+    { q: "Will you share your food with me?", mount: stepSlider },
+    { q: "Am I the cute one in this relationship?", mount: stepLocked },
+    { q: "Do you love me more than your phone?", mount: stepHold },
+    { q: "Will you forgive me for what I did?", mount: stepSlide },
+    { q: "Will you go shopping with me?", mount: stepWheel }
+  ];
+
+  function mount() {
+    token++;
+    stage.innerHTML = "";
+    say("");
+    var s = STEPS[i];
+    qEl.textContent = s.q;
+    $("count").textContent = (i + 1) + " / " + STEPS.length;
+    $("fill").style.width = (i / STEPS.length * 100) + "%";
+    cleanup = s.mount() || null;
+  }
+  function advance() {
+    token++;
+    if (cleanup) { cleanup(); cleanup = null; }
+    i++;
+    if (i >= STEPS.length) { finish(); return; }
+    mount();
+  }
+  function finish() {
+    stage.innerHTML = "";
+    $("quiz").hidden = true;
+    $("finale").hidden = false;
+    confetti();
+  }
+  $("again").addEventListener("click", function () {
+    i = 0;
+    $("finale").hidden = true;
+    $("quiz").hidden = false;
+    mount();
+  });
+
+  function confetti() {
+    var c = $("confetti"), ctx = c.getContext("2d");
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var dpr = window.devicePixelRatio || 1;
+    c.width = innerWidth * dpr; c.height = innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var colors = ["#e8325a", "#ff8fa8", "#ffc14d", "#7ad7c1", "#8f7bff"];
+    var count = reduce ? 40 : 160, parts = [];
+    for (var k = 0; k < count; k++) {
+      parts.push({
+        x: Math.random() * innerWidth, y: -20 - Math.random() * innerHeight * 0.6,
+        w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+        vy: 2 + Math.random() * 3, vx: -1 + Math.random() * 2,
+        r: Math.random() * 6, vr: -0.2 + Math.random() * 0.4, c: colors[k % colors.length]
+      });
+    }
+    var frames = 0;
+    (function tick() {
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      parts.forEach(function (p) {
+        p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r);
+        ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      });
+      frames++;
+      if (frames < 260) requestAnimationFrame(tick); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+    })();
+  }
+
+  mount();
+})();
+</script>
+
+</body></html>
